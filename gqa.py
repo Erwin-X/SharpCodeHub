@@ -9,10 +9,10 @@ class GroupQueryAttention:
         self.head_size = head_size
         self.head_dim = self.hidden_size // self.head_size
         self.kv_out_dim = group_size * self.head_dim
-        self.q_linear = torch.nn.Dense(hidden_size, hidden_size)
-        self.k_linear = torch.nn.Dense(hidden_size, self.kv_out_dim)
-        self.v_linear = torch.nn.Dense(hidden_size, self.kv_out_dim)
-        self.output_linear = torch.nn.Dense(hidden_size, hidden_size)
+        self.q_linear = torch.nn.Linear(hidden_size, hidden_size)
+        self.k_linear = torch.nn.Linear(hidden_size, self.kv_out_dim)
+        self.v_linear = torch.nn.Linear(hidden_size, self.kv_out_dim)
+        self.output_linear = torch.nn.Linear(hidden_size, hidden_size)
         self.attn_dropout = torch.nn.Dropout(p=attn_dropout)
 
     def forward(self, input, input_mask):
