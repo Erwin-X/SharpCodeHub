@@ -28,7 +28,7 @@ class MultiQueryAttention:
         K = self.k_linear(input)    # [B, L, h_d]
         V = self.v_linear(input)    # [B, L, h_d]
 
-        attn_logits = torch.einsum("bhld, bld -> bhll", Q, K)/math.sqrt(self.hidden_size)  # smooth
+        attn_logits = torch.einsum("bhld, bld -> bhll", Q, K)/math.sqrt(self.h_d)  # smooth
         if input_mask:
             attn_masks = torch.einsum("bld,bld -> bll", input_mask, input_mask)
             attn_logits -= attn_masks[:,None,:] * 1e9

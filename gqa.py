@@ -31,7 +31,7 @@ class GroupQueryAttention:
         K = self.k_linear(input).reshape(b,l,g,h_d).transpose(1,2)    # [B, G, L, h_d]
         V = self.v_linear(input).reshape(b,l,g,h_d).transpose(1,2)    # [B, G, L, h_d]
  
-        attn_logits = torch.einsum("bgjld, bgld -> bgjll", Q, K)/math.sqrt(self.hidden_size)  # smooth
+        attn_logits = torch.einsum("bgjld, bgld -> bgjll", Q, K)/math.sqrt(self.h_d)  # smooth
         if input_mask:
             attn_masks = torch.einsum("bld,bld -> bll", input_mask, input_mask)
             attn_logits -= attn_masks[:,None,None,:] * 1e9

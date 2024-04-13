@@ -31,7 +31,7 @@ class MultiHeadAttentionKV:
             K = self.k_linear(input).reshape(b,l,h,h_d).transpose(1,2)
             V = self.v_linear(input).reshape(b,l,h,h_d).transpose(1,2)
 
-        attn_logits = torch.einsum("bhld, bhld -> bhll", Q, K)/math.sqrt(self.hidden_size)  # smooth
+        attn_logits = torch.einsum("bhld, bhld -> bhll", Q, K)/math.sqrt(self.h_d)  # smooth
         if input_mask:
             attn_masks = torch.einsum("bld,bld -> bll", input_mask, input_mask)
             attn_logits -= attn_masks[:,None,:] * 1e9
