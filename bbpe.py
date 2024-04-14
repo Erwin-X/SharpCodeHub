@@ -11,7 +11,6 @@ class BBPEConstructor:
     def construct(self, sentences):
         stats = self._build_stats(sentences)
         splits = self._init_splits(stats)
-        pair_freqs = self._compute_pair_freqs(stats, splits)
 
         while len(self.vocab) < self.vocab_size:
             pair_freqs = self._compute_pair_freqs(stats, splits)
@@ -21,7 +20,7 @@ class BBPEConstructor:
                 if max_freq is None or max_freq < freq:
                     best_pair = pair
                     max_freq = freq
-            splits = self._merge_pair(best_pair, stats, splits)
+            splits = self._merge_pair(best_pair, splits)
             merged_byte = best_pair[0] + best_pair[1]
             self.merges[best_pair] = merged_byte
             self.vocab.add(merged_byte)
@@ -49,7 +48,7 @@ class BBPEConstructor:
         return stats
 
     def _init_splits(self, stats):
-        splits = {word: [bytes([byte]) for byte in word] for word in stats.keys()}
+        splits = {word: [bytes([byte]) for byte in word] for word in stats}
         return splits
 
     def _compute_pair_freqs(self, stats, splits):
@@ -63,9 +62,9 @@ class BBPEConstructor:
                 pair_freqs[pair] += freq
         return pair_freqs
 
-    def _merge_pair(self, pair, stats, splits):
+    def _merge_pair(self, pair, splits):
         merged_byte = pair[0] + pair[1]
-        for word in stats:
+        for word in splits:
             split = splits[word]
             if len(split) == 1:
                 continue
@@ -90,7 +89,7 @@ if __name__ == "__main__":
     "give you a hug",
     ]
 
-    bbpe_constructor = BBPEVocaConstructor(vocab_size=300)
+    bbpe_constructor = BBPEConstructor(vocab_size=300)
     vocab = bbpe_constructor.construct(sentences)
     print("vocab:")
     for i,t in enumerate(vocab):
