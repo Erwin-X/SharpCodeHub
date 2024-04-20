@@ -62,12 +62,15 @@ class LinearRegressionModel:
         return y_
 
 if __name__ == "__main__":
-    # y = x_1+2x_2+3
+    # y = x_1 + 2x_2 + 3
     x = [[1,2], [2,3], [3,4], [4,5], [5,6], [1,10]]
     y = [8, 11, 14, 17, 20, 24]
 
+    # y = x_1 + x_2 + 3
+    # y = [6, 8, 10, 12, 14, 14]
+
     LRModel = LinearRegressionModel(2)
-    LRModel.train(x, y, epochs=1000, batch_size=3, lr=1e-2)
+    LRModel.train(x, y, epochs=2000, batch_size=3, lr=1e-2)
     print(f"LRModel weights&bias: {LRModel.weights}, {LRModel.bias}")
 
     test_x = [[1,2], [1,3]]  # y=[8, 10]
