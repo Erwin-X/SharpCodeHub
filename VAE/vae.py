@@ -12,7 +12,7 @@ class VAE(nn.Module):
           self, 
           x_dim,
           hidden_dim,
-          z_dim=10
+          z_dim
         ):
         super(VAE, self).__init__()
 
@@ -58,35 +58,29 @@ def loss_function(output, x, mu, logvar):
 
 
 def train_model(
-    X, 
+    train_loader=None,
     learning_rate=1e-4, 
-    batch_size=128, 
     num_epochs=15,
+    input_dim=28*28,
     hidden_dim=256,
-    latent_dim=50
+    latent_dim=64
   ):
   # Define the VAE model
-  model = VAE(x_dim=X.shape[1], hidden_dim=hidden_dim, z_dim=latent_dim)
+  model = VAE(x_dim=input_dim, hidden_dim=hidden_dim, z_dim=latent_dim)
 
   # Define the optimizer
   optimizer = optim.Adam(model.parameters(), lr=learning_rate)
   
-  # Convert X to a PyTorch tensor
-  X = torch.tensor(X).float()
-
-  # Create DataLoader object to generate minibatches
-  dataset = TensorDataset(X)
-  dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
-  
   # Train the model
   for epoch in range(num_epochs):
       epoch_loss = 0
-      for batch in dataloader:
+      for batch_idx, batch in enumerate(train_loader):
           # Zero the gradients
           optimizer.zero_grad()
 
           # Get batch
           x = batch[0]
+          x = x.reshape(x.shape[0], -1)
 
           # Forward pass
           output, z, mu, logvar = model(x)
@@ -103,11 +97,10 @@ def train_model(
           # Add batch loss to epoch loss
           epoch_loss += loss.item()
 
+          if batch_idx % 20 == 0:
+              print(f"Epoch: {epoch+1}/{num_epochs}, Batch: {batch_idx}, Loss: {loss}")
+
       # Print epoch loss
-      print(f"Epoch {epoch+1}/{num_epochs}, Loss: {epoch_loss/len(X)}")
-      
+      print(f"Epoch: {epoch+1}/{num_epochs}, Loss: {epoch_loss/(batch_idx*len(batch))}")
+
   return model
-
-
-if __name__ == "__main__":
-    train_model()
