@@ -13,33 +13,31 @@ class MultiHeadAttentionKV:
         self.output_linear = torch.nn.Linear(hidden_size, hidden_size)
         self.attn_dropout = torch.nn.Dropout(p=attn_dropout)
 
-    def forward(self, input, input_mask, prev_K, prev_V, kv_cache=False, return_kv=False):
+    def forward(self, input, input_mask, kv_cache=None, use_cache=False):
         """
-            Params:
-                input: [B, L, D]
-            Return:
-                output: [B, L, D]
+            input: [B, T, D]
+            input_mask: [B, T]
         """
-        b,l,_ = input.shape
+        b,t,_ = input.shape
         h,h_d = self.head_size, self.head_dim
 
-        Q = self.q_linear(input).reshape(b,l,h,h_d).transpose(1,2)    # [B, H, L, h_d]
-        if kv_cache:
-            K = torch.cat(prev_K, self.k_linear(input).reshape(b,l,h,h_d).transpose(1,2), dim=2)
-            V = torch.cat(prev_V, self.k_linear(input).reshape(b,l,h,h_d).transpose(1,2), dim=2)
+        Q = self.q_linear(input).reshape(b,t,h,h_d).transpose(1,2)    # [B, H, T, h_d]
+        if kv_cache is not None:
+            k_cache, v_cache = kv_cache
+            K = torch.cat(k_cache, self.k_linear(input).reshape(b,t,h,h_d).transpose(1,2), dim=2)
+            V = torch.cat(v_cache, self.v_linear(input).reshape(b,t,h,h_d).transpose(1,2), dim=2)
         else:
-            K = self.k_linear(input).reshape(b,l,h,h_d).transpose(1,2)
-            V = self.v_linear(input).reshape(b,l,h,h_d).transpose(1,2)
+            K = self.k_linear(input).reshape(b,t,h,h_d).transpose(1,2)
+            V = self.v_linear(input).reshape(b,t,h,h_d).transpose(1,2)
+        new_kv_cache = (K,V) if use_cache else None
 
-        attn_logits = torch.einsum("bhld, bhld -> bhll", Q, K)/math.sqrt(self.h_d)  # smooth
+        attn_logits = torch.einsum("bhtd, bhtd -> bhtt", Q, K)/math.sqrt(self.h_d)  # smooth
         if input_mask:
-            attn_masks = torch.einsum("bld,bld -> bll", input_mask, input_mask)
+            attn_masks = torch.einsum("btd,btd -> btt", input_mask[:,:,None], input_mask[:,:,None])
             attn_logits -= attn_masks[:,None,:] * 1e9
-        attn_weights = F.softmax(attn_logits, dim=-1)    # [B, H, L, L]
+        attn_weights = F.softmax(attn_logits, dim=-1)    # [B, H, T, T]
         attn_weights = self.attn_dropout(attn_weights)
 
-        output = torch.einsum("bhll, bhld -> bl(hd)", attn_weights, V)
+        output = torch.einsum("bhtt, bhtd -> bt(hd)", attn_weights, V)
         output = self.output_linear(output)
-        if kv_cache or return_kv:
-            return output, K, V
-        return output
+        return output, new_kv_cache

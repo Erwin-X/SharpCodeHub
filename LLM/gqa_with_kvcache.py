@@ -2,51 +2,47 @@ import math
 import torch
 import torch.nn.functional as F
 
-class GroupQueryAttention:
-    def __init__(self, hidden_size, head_num, group_num, attn_dropout=0.1):
-        assert head_num % group_num == 0, "head_num mod group_num must be zero"
+class GroupQueryAttentionKV:
+    def __init__(self, hidden_size, head_size, group_size, attn_dropout=0.1):
         self.hidden_size = hidden_size
-        self.head_num = head_num
-        self.head_dim = self.hidden_size // self.head_num
-        self.group_num = group_num
-        self.group_size = head_num // group_num
-        self.kv_out_dim = group_num * self.head_dim
+        self.head_size = head_size
+        self.head_dim = self.hidden_size // self.head_size
+        self.group_size = group_size
+        self.group_head_size = head_size // group_size
+
         self.q_linear = torch.nn.Linear(hidden_size, hidden_size)
-        self.k_linear = torch.nn.Linear(hidden_size, self.kv_out_dim)
-        self.v_linear = torch.nn.Linear(hidden_size, self.kv_out_dim)
+        self.k_linear = torch.nn.Linear(hidden_size, self.head_dim * group_size)
+        self.v_linear = torch.nn.Linear(hidden_size, self.head_dim * group_size)
         self.output_linear = torch.nn.Linear(hidden_size, hidden_size)
         self.attn_dropout = torch.nn.Dropout(p=attn_dropout)
 
-    def forward(self, input, input_mask, prev_K, prev_V, kv_cache=False, return_kv=False):
+    def forward(self, input, input_mask, kv_cache=None, use_cache=False):
         """
-            Params:
-                input: [B, S, D]
-                input_mask: [B, S]
-            Return:
-                output: [B, S, D]
+            input: [B, T, D]
+            input_mask: [B, T]
         """
-        b,s,_ = input.shape
-        h_dim = self.head_dim
-        g,g_dim = self.group_num, self.group_size
+        b,t,_ = input.shape
+        h,h_d = self.head_size, self.head_dim
+        g,g_h = self.group_size, self.group_head_size
 
-        Q = self.q_linear(input).reshape(b,s,g,g_dim,h_dim).transpose(1,2)    # [B, G, Gsize, S, h_dim], H=G*Gsize
+        Q = self.q_linear(input).reshape(b,t,h,h_d).transpose(1,2)    # [B, H, T, h_d]
+        K = self.k_linear(input).reshape(b,t,g,h_d).transpose(1,2)
+        V = self.v_linear(input).reshape(b,t,g,h_d).transpose(1,2)
+        if kv_cache is not None:
+            k_cache, v_cache = kv_cache
+            K = torch.cat(k_cache, K, dim=2)
+            V = torch.cat(v_cache, V, dim=2)
+        new_kv_cache = (K,V) if use_cache else None
+        K = K.repeat_interleave(g_h, dim=1)
+        V = V.repeat_interleave(g_h, dim=1)
 
-        if kv_cache:
-            K = torch.cat(prev_K, self.k_linear(input).reshape(b,s,g,h_dim).transpose(1,2), dim=2)
-            V = torch.cat(prev_V, self.v_linear(input).reshape(b,s,g,h_dim).transpose(1,2), dim=2)
-        else:
-            K = self.k_linear(input).reshape(b,s,g,h_dim).transpose(1,2)    # [B, G, S, h_dim]
-            V = self.v_linear(input).reshape(b,s,g,h_dim).transpose(1,2)    # [B, G, S, h_dim]
- 
-        attn_logits = torch.einsum("bgjsd, bgsd -> bgjss", Q, K)/math.sqrt(self.h_dim)  # smooth
+        attn_logits = torch.einsum("bhtd, bhtd -> bhtt", Q, K)/math.sqrt(self.h_d)  # smooth
         if input_mask:
-            attn_masks = torch.einsum("bsd,bsd -> bss", input_mask, input_mask)
-            attn_logits -= attn_masks[:,None,None,:] * 1e9
-        attn_weights = F.softmax(attn_logits, dim=-1)    # [B, G, J, S, S]
+            attn_masks = torch.einsum("btd,btd -> btt", input_mask[:,:,None], input_mask[:,:,None])
+            attn_logits -= attn_masks[:,None,:] * 1e9
+        attn_weights = F.softmax(attn_logits, dim=-1)    # [B, H, T, T]
         attn_weights = self.attn_dropout(attn_weights)
 
-        output = torch.einsum("bgjss, bgsd -> bs(gjd)", attn_weights, V)
+        output = torch.einsum("bhtt, bhtd -> bt(hd)", attn_weights, V)
         output = self.output_linear(output)
-        if kv_cache or return_kv:
-            return output, K, V
-        return output
+        return output, new_kv_cache
