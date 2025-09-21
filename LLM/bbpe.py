@@ -47,7 +47,6 @@ class BBPETokenizer:
             # 创建新token
             new_id = 256 + merges_done
             self.vocab[new_id] = self.vocab[best_pair[0]] + self.vocab[best_pair[1]]
-            self.inverse_vocab[self.vocab[new_id]] = new_id
             self.merges[best_pair] = new_id
             merges_done += 1
             
